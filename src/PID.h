@@ -33,6 +33,11 @@ public:
   void Init(double Kp, double Ki, double Kd);
 
   /*
+  * Calculate PID values and output given cross track error.
+  */
+  double CalcOutput(double cte);
+
+  /*
   * Update the PID error variables given cross track error.
   */
   void UpdateError(double cte);
@@ -41,6 +46,12 @@ public:
   * Calculate the total PID error.
   */
   double TotalError();
+
+private:
+  // integral of CTE
+  double cte_integral;
+  // CTE of previous timestep
+  double cte_prev;
 };
 
 #endif /* PID_H */
