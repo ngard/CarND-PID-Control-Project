@@ -3,6 +3,18 @@
 
 class PID {
 public:
+  enum KtoTune {
+		Initial,
+		TuneP,
+		TuneI,
+		TuneD
+  };
+
+  enum Trial {
+	      First,
+	      Second
+  };
+
   /*
   * Errors
   */
@@ -18,6 +30,12 @@ public:
   double Kd;
 
   /*
+  * State
+  */
+  KtoTune k;
+  Trial trial;
+
+  /*
   * Constructor
   */
   PID();
@@ -30,7 +48,7 @@ public:
   /*
   * Initialize PID.
   */
-  void Init(double Kp, double Ki, double Kd);
+  void Init(double Kp, double Ki, double Kd, KtoTune k_to_tune, Trial trial);
 
   /*
   * Calculate PID values and output given cross track error.
@@ -47,11 +65,21 @@ public:
   */
   double TotalError();
 
+  /*
+  * Return the number of timestep after Init().
+  */
+  unsigned TimeCount();
+
 private:
   // integral of CTE
   double cte_integral;
   // CTE of previous timestep
   double cte_prev;
+
+  // number of timesteps after Init()
+  unsigned count_timestep;
+  // average of CTE after Init()
+  double cte_average;
 };
 
 #endif /* PID_H */

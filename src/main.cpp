@@ -33,14 +33,20 @@ int main()
 {
   uWS::Hub h;
 
+  bool do_twiddle = false;
+
   PID pid_steer;
   // TODO: Initialize the pid variable.
-  pid_steer.Init(0.7, 0.004, 25.0);
+  double Kp_steer = 0.86561, Ki_steer = 0.005656, Kd_steer = 38.923;
+  double dKp_steer = 0.1, dKi_steer = 0.001, dKd_steer = 3.;
+  pid_steer.Init(Kp_steer, Ki_steer, Kd_steer, PID::KtoTune::Initial, PID::Trial::First);
 
-  h.onMessage([&pid_steer](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  h.onMessage([&do_twiddle,&pid_steer,&Kp_steer,&Ki_steer,&Kd_steer,&dKp_steer,&dKi_steer,&dKd_steer](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
+
+    static double best_error;
     if (length && length > 2 && data[0] == '4' && data[1] == '2')
     {
       auto s = hasData(std::string(data).substr(0, length));
@@ -59,14 +65,99 @@ int main()
           * NOTE: Feel free to play around with the throttle and speed. Maybe use
           * another PID controller to control the speed!
           */
+
+	  // twiddle hyperparameters tuning
+	  if (do_twiddle && pid_steer.TimeCount() > 2e4) {
+	    double error = pid_steer.TotalError();
+	    std::cerr << std::endl << "error:" << error << " best error:" << best_error << std::endl;
+	    if (pid_steer.k == PID::KtoTune::Initial)
+	      best_error = error;
+
+	    switch(pid_steer.k) {
+	    case PID::KtoTune::Initial:
+	      Kp_steer += dKp_steer;
+	      pid_steer.Init(Kp_steer,Ki_steer,Kd_steer,PID::KtoTune::TuneP,PID::Trial::First);
+	      break;
+	    case PID::KtoTune::TuneP:
+	      if (pid_steer.trial == PID::Trial::First) {
+		if (error < best_error) {
+		  best_error = error;
+		  dKp_steer *= 1.1;
+		} else {
+		  Kp_steer -= 2*dKp_steer;
+		  pid_steer.Init(Kp_steer,Ki_steer,Kd_steer,PID::KtoTune::TuneP,PID::Trial::Second);
+		  break;
+		}
+	      } else if (pid_steer.trial == PID::Trial::Second) {
+		if (error < best_error) {
+		  best_error = error;
+		  dKp_steer *= 1.1;
+		} else {
+		  Kp_steer += dKp_steer;
+		  dKp_steer *= 0.9;
+		}
+	      }
+	      Ki_steer += dKi_steer;
+	      pid_steer.Init(Kp_steer,Ki_steer,Kd_steer,PID::KtoTune::TuneI,PID::Trial::First);
+	      break;
+	    case PID::KtoTune::TuneI:
+	      if (pid_steer.trial == PID::Trial::First) {
+		if (error < best_error) {
+		  best_error = error;
+		  dKi_steer *= 1.1;
+		} else {
+		  Ki_steer -= 2*dKi_steer;
+		  pid_steer.Init(Kp_steer,Ki_steer,Kd_steer,PID::KtoTune::TuneI,PID::Trial::Second);
+		  break;
+		}
+	      } else if (pid_steer.trial == PID::Trial::Second) {
+		if (error < best_error) {
+		  best_error = error;
+		  dKi_steer *= 1.1;
+		} else {
+		  Ki_steer += dKi_steer;
+		  dKi_steer *= 0.9;
+		}
+	      }
+	      Kd_steer += dKd_steer;
+	      pid_steer.Init(Kp_steer,Ki_steer,Kd_steer,PID::KtoTune::TuneD,PID::Trial::First);
+	      break;
+	    case PID::KtoTune::TuneD:
+	      if (pid_steer.trial == PID::Trial::First) {
+		if (error < best_error) {
+		  best_error = error;
+		  dKd_steer *= 1.1;
+		} else {
+		  Kd_steer -= 2*dKd_steer;
+		  pid_steer.Init(Kp_steer,Ki_steer,Kd_steer,PID::KtoTune::TuneD,PID::Trial::Second);
+		  break;
+		}
+	      } else if (pid_steer.trial == PID::Trial::Second) {
+		if (error < best_error) {
+		  best_error = error;
+		  dKd_steer *= 1.1;
+		} else {
+		  Kd_steer += dKd_steer;
+		  dKd_steer *= 0.9;
+		}
+	      }
+	      Kp_steer += dKp_steer;
+	      pid_steer.Init(Kp_steer,Ki_steer,Kd_steer,PID::KtoTune::TuneP,PID::Trial::First);
+	      break;
+	    }
+	  }
+
 	  steer_value = pid_steer.CalcOutput(cte);
 	  throttle = 0.45;
 
+	  pid_steer.UpdateError(cte);
+
           // DEBUG
-          std::cerr << std::showpoint << std::showpos << std::fixed
-		    << "CTE: " << cte
-		    << " Steering Value: " << steer_value
-		    << " Throttle: " << throttle << std::endl;
+          // std::cerr << std::showpoint << std::showpos << std::fixed
+	  // 	    << "CTE: " << cte
+	  // 	    << " Steering Value: " << steer_value
+	  // 	    << " Throttle: " << throttle
+	  // 	    << " Average CTE: " << pid_steer.TotalError() << std::endl;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
