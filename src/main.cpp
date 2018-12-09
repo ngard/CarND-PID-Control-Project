@@ -35,13 +35,15 @@ int main()
 
   bool do_twiddle = false;
 
-  PID pid_steer;
+  PID pid_steer, pid_throttle;
   // TODO: Initialize the pid variable.
   double Kp_steer = 0.86561, Ki_steer = 0.005656, Kd_steer = 38.923;
   double dKp_steer = 0.1, dKi_steer = 0.001, dKd_steer = 3.;
   pid_steer.Init(Kp_steer, Ki_steer, Kd_steer, PID::KtoTune::Initial, PID::Trial::First);
+  double Kp_throttle = -0.7, Ki_throttle = 0, Kd_throttle = -5.;
+  pid_throttle.Init(Kp_throttle, Ki_throttle, Kd_throttle);
 
-  h.onMessage([&do_twiddle,&pid_steer,&Kp_steer,&Ki_steer,&Kd_steer,&dKp_steer,&dKi_steer,&dKd_steer](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  h.onMessage([&do_twiddle,&pid_steer,&pid_throttle,&Kp_steer,&Ki_steer,&Kd_steer,&dKp_steer,&dKi_steer,&dKd_steer](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -148,7 +150,7 @@ int main()
 	  }
 
 	  steer_value = pid_steer.CalcOutput(cte);
-	  throttle = 0.45;
+	  throttle = 0.8 - pid_throttle.CalcOutput(abs(cte));
 
 	  pid_steer.UpdateError(cte);
 

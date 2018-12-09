@@ -48,7 +48,7 @@ public:
   /*
   * Initialize PID.
   */
-  void Init(double Kp, double Ki, double Kd, KtoTune k_to_tune, Trial trial);
+  void Init(double Kp, double Ki, double Kd, KtoTune k_to_tune = Initial, Trial trial = First);
 
   /*
   * Calculate PID values and output given cross track error.
